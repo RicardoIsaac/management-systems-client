@@ -1,25 +1,58 @@
-import React from 'react';
-import logo from './logo.svg';
+import React, { useState, useEffect } from 'react';
+import FeedbackForm from './components/feedbackForm';
+import FeedbackList from './components/feedbackList';
 import './App.css';
 
-function App() {
+
+interface Feedback {
+  id: number;
+  name: string;
+  feedback: string;
+}
+
+const App: React.FC =() => {
+  const [feedbacks, setFeedbacks] = useState<Feedback[]>([]);
+  const [disabledBtn, setdisabledBtn] = useState(false)
+
+  useEffect(() => {
+    const worker = new Worker(new URL('./worker/feedbackWorker', import.meta.url));
+
+    worker.onmessage = (event) => {
+      setFeedbacks(event.data);
+    };
+
+    worker.postMessage('fetchFeedbacks');
+
+    return () => {
+      worker.terminate();
+    };
+  }, []);
+
+  const handleFormSubmit = async (name: string, feedback: string) => {
+    try {
+      const response = await fetch('http://localhost:8000/feedback', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ name, feedback }),
+      });
+      const newFeedback = await response.json();
+      setFeedbacks([...feedbacks, newFeedback]);
+      setdisabledBtn(true)
+      setTimeout(() => {
+        setdisabledBtn(false);
+      }, 10000);
+    } catch (error) {
+      console.error('Error submitting feedback:', error);
+    }
+  };
+
   return (
     <div className="App">
-      <header className="App-header">
-        <img src={logo} className="App-logo" alt="logo" />
-        <p>
-          Edit <code>src/App.tsx</code> and save to reload.
-        </p>
-        <a
-          className="App-link"
-          href="https://reactjs.org"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          Learn React
-        </a>
-      </header>
-    </div>
+          <FeedbackForm onSubmit={handleFormSubmit} disabledBtn={disabledBtn} />
+          <FeedbackList feedbacks={feedbacks} />
+        </div>
   );
 }
 
